@@ -1,0 +1,15 @@
+--find-links https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html
+paddle-serving-client==0.9.0
+paddle-serving-app==0.9.0
+paddle-serving-server-gpu==0.9.0.post112
+paddlenlp==2.4.0
+urllib3>=1.25.10
+packaging>=20.9
+faster_tokenizer==0.1.6
+scipy>=1.5.0
+ts==0.5.1
+numpy==1.22.4
+awscli
+nvgpu>=0.9
+onnxruntime-gpu==1.8.0
+onnx==1.11.0
