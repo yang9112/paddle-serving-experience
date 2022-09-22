@@ -141,9 +141,11 @@ local_service_conf:
 }
 ```
 测试结果：其中 TS（torchserve）、TRT（TensorRT）、PSP（Paddle Serving Pipeline）
-<div align="centre">
-<img height="300" src="./images/experiment-result.png" title="results"/>
+
+<div align=center>
+    <img src="images/experiment-result.png" width="400" title="Paddle Serving">
 </div>
+
 
 - 遗留问题1：在 TorchServe 中的 TRT 哪怕设置支持动态 shape 的输入，其运行速度也会受到engine 中 context申请的 shape 大小而影响，因此此处设置了256/512的2个指定 shape 进行测试，此处方案待优化验证。
 
@@ -157,9 +159,7 @@ local_service_conf:
 # 4. 其他
 ## 4.1 服务报错：CUDA  driver and runtime could not be initialized
 
-<div align="centre">
-    <img width="600" height="150" src="./images/P1-cuda-drive.png" />
-</div>
+![image.png](./images/P1-cuda-drive.png)
 
 参考：[https://github.com/PaddlePaddle/PaddleOCR/issues/3070](https://github.com/PaddlePaddle/PaddleOCR/issues/3070)
 原因：Paddle Serving 多线程，需要在子进程中进行import paddle 相关依赖，问题解决。
