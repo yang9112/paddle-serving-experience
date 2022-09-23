@@ -179,29 +179,8 @@ class BertOp(Op):
 ```
 
 ## 4.2 TRT 转换出现额外需要设置的动态输入
-原因：PaddlePaddle 的 BertModel不是原生的BertModel，从默认的 vocab_size 可以看出，应该是属于 ERNIE的 base，除此之外，还有一个和原生的 BERT 不同的是 attention_mask 的处理，可以看出来，attention_mask 默认的大小应该是[batch_size, 1, 1, sequence_length]，和transformer 中的不一致。
-```python
-if attention_mask is None:
-    attention_mask = paddle.unsqueeze(
-        (input_ids == self.pad_token_id).astype(
-            self.pooler.dense.weight.dtype) * -1e4,
-        axis=[1, 2])
-    if past_key_values is not None:
-        batch_size = past_key_values[0][0].shape[0]
-        past_mask = paddle.zeros(
-            [batch_size, 1, 1, past_key_values_length],
-            dtype=attention_mask.dtype)
-        attention_mask = paddle.concat([past_mask, attention_mask],
-                                       axis=-1)
-else:
-    if attention_mask.ndim == 2:
-        # attention_mask [batch_size, sequence_length] -> [batch_size, 1, 1, sequence_length]
-        attention_mask = attention_mask.unsqueeze(axis=[1, 2]).astype(
-            paddle.get_default_dtype())
-        attention_mask = (1.0 - attention_mask) * -1e4
-```
-也因为 attention_mask 的问题，导致在转 TRT 的时候，如果使用动态向量，则需要增加一个动态向量的设置，并且在不同的 tensorrt 版本中对应需要
-动态设置的变量还不一定一样。比如此处`unsqueeze2_0.tmp_0`的额外设置。
+原因：Paddle Serving 本身转 TRT 的问题，毕竟不是原生TRT的转换，PaddlePaddle 的 BertModel不是原生的BertModel，从默认的 vocab_size 可以看出，应该是属于 ERNIE的 base，转 TRT 的时候，如果使用动态向量，则需要增加一个多个动态向量的设置，并且在不同的 tensorrt 版本不同的模型中对应需要动态设置的变量还不一定一样。
+比如此处`unsqueeze2_0.tmp_0`的额外设置。
 
 ```python
  def set_dynamic_shape_info(self):
