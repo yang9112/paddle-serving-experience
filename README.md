@@ -141,11 +141,30 @@ local_service_conf:
 }
 ```
 测试结果：其中 TS（torchserve）、TRT（TensorRT）、PSP（Paddle Serving Pipeline）
-<div align="centre">
-<img height="300" src="./images/experiment-result.png" title="results"/>
+
+<div align=center>
+    <img src="images/experiment-result.png" width="400" title="Paddle Serving">
 </div>
 
-- 遗留问题1：在 TorchServe 中的 TRT 哪怕设置支持动态 shape 的输入，其运行速度也会受到engine 中 context申请的 shape 大小而影响，因此此处设置了256/512的2个指定 shape 进行测试，此处方案待优化验证。
+
+- ~~遗留问题1：在 TorchServe 中的 TRT 哪怕设置支持动态 shape 的输入，其运行速度也会受到engine 中 context申请的 shape 大小而影响，因此此处设置了256/512的2个指定 shape 进行测试，此处方案待优化验证。~~
+
+- 遗留问题1【已解决】：TRT虽然支持动态输入，但是实际还是使用固定的 `Binding Shape`，如果 `input_ids` 超过其长度，则会进行截断。TRT性能与其设定的 `Binding Shape` 直接相关，与输入的`inputs`无关，因此 TRT 的动态输入与传统意义上的动态输入还不大一样，因此，一种取巧的办法就是一开始就定义多个 `profile` [128, 256, 512]，性能在[128，256，512]的时候能够达到对应的性能的极致，但是在长度为当前设定上限 `max + 1`时，对应性能则会迅速降低（选择了其他的参数模板），具体原因可以参考[这里](https://github.com/NVIDIA/TensorRT/issues/2343)
+```python
+# 重点
+max_seq_length_list = [128, 256, 512]
+# 动态输入时候需要 分别为最小输入、常规输入、最大输入
+for max_seq_length in max_seq_length_list:
+    profile = builder.create_optimization_profile()
+    min_shape = (1, max_seq_length)
+    opt_shape = (1, max_seq_length)
+    max_shape = (1, max_seq_length)
+    # 注意自己有几个输入，有几个输入就要写几个profile.set_shape, 名字和转onnx的时候相对应
+    profile.set_shape('input_ids', min_shape, opt_shape, max_shape)
+    profile.set_shape('attention_mask', min_shape, opt_shape, max_shape)
+    profile.set_shape('token_type_ids', min_shape, opt_shape, max_shape)
+    config.add_optimization_profile(profile)
+```
 
 - 遗留问题2：非常奇怪的是，在Pipeline 的 TRT 方案中，FP32的性能反而比 GPU 的性能还差，但是使用了 FP6之后，整体性能有差不多是 GPU 性能的2倍，该问题待解释。
 
@@ -157,9 +176,7 @@ local_service_conf:
 # 4. 其他
 ## 4.1 服务报错：CUDA  driver and runtime could not be initialized
 
-<div align="centre">
-    <img width="600" height="150" src="./images/P1-cuda-drive.png" />
-</div>
+![image.png](./images/P1-cuda-drive.png)
 
 参考：[https://github.com/PaddlePaddle/PaddleOCR/issues/3070](https://github.com/PaddlePaddle/PaddleOCR/issues/3070)
 原因：Paddle Serving 多线程，需要在子进程中进行import paddle 相关依赖，问题解决。
@@ -179,29 +196,8 @@ class BertOp(Op):
 ```
 
 ## 4.2 TRT 转换出现额外需要设置的动态输入
-原因：PaddlePaddle 的 BertModel不是原生的BertModel，从默认的 vocab_size 可以看出，应该是属于 ERNIE的 base，除此之外，还有一个和原生的 BERT 不同的是 attention_mask 的处理，可以看出来，attention_mask 默认的大小应该是[batch_size, 1, 1, sequence_length]，和transformer 中的不一致。
-```python
-if attention_mask is None:
-    attention_mask = paddle.unsqueeze(
-        (input_ids == self.pad_token_id).astype(
-            self.pooler.dense.weight.dtype) * -1e4,
-        axis=[1, 2])
-    if past_key_values is not None:
-        batch_size = past_key_values[0][0].shape[0]
-        past_mask = paddle.zeros(
-            [batch_size, 1, 1, past_key_values_length],
-            dtype=attention_mask.dtype)
-        attention_mask = paddle.concat([past_mask, attention_mask],
-                                       axis=-1)
-else:
-    if attention_mask.ndim == 2:
-        # attention_mask [batch_size, sequence_length] -> [batch_size, 1, 1, sequence_length]
-        attention_mask = attention_mask.unsqueeze(axis=[1, 2]).astype(
-            paddle.get_default_dtype())
-        attention_mask = (1.0 - attention_mask) * -1e4
-```
-也因为 attention_mask 的问题，导致在转 TRT 的时候，如果使用动态向量，则需要增加一个动态向量的设置，并且在不同的 tensorrt 版本中对应需要
-动态设置的变量还不一定一样。比如此处`unsqueeze2_0.tmp_0`的额外设置。
+原因：Paddle Serving 本身转 TRT 的问题，毕竟不是原生TRT的转换，PaddlePaddle 的 BertModel不是原生的BertModel，从默认的 vocab_size 可以看出，应该是属于 ERNIE的 base，转 TRT 的时候，如果使用动态向量，则需要增加一个多个动态向量的设置，并且在不同的 tensorrt 版本不同的模型中对应需要动态设置的变量还不一定一样。
+比如此处`unsqueeze2_0.tmp_0`的额外设置。
 
 ```python
  def set_dynamic_shape_info(self):
