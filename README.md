@@ -147,7 +147,23 @@ local_service_conf:
 </div>
 
 
-- 遗留问题1：在 TorchServe 中的 TRT 哪怕设置支持动态 shape 的输入，其运行速度也会受到engine 中 context申请的 shape 大小而影响，因此此处设置了256/512的2个指定 shape 进行测试，此处方案待优化验证。
+- ~~遗留问题1：在 TorchServe 中的 TRT 哪怕设置支持动态 shape 的输入，其运行速度也会受到engine 中 context申请的 shape 大小而影响，因此此处设置了256/512的2个指定 shape 进行测试，此处方案待优化验证。~~
+ - TRT虽然支持动态输入，但是实际还是使用固定的 `Binding Shape`，如果 `input_ids` 超过其长度，则会进行截断。TRT性能与其设定的 `Binding Shape` 直接相关，与输入的`inputs`无关，因此 TRT 的动态输入与传统意义上的动态输入还不大一样，因此，一种取巧的办法就是一开始就定义多个 `profile` [128, 256, 512]，性能在[128，256，512]的时候能够达到对应的性能的极致，但是在长度为当前设定上限 `max + 1`时，对应性能则会迅速降低（选择了其他的参数模板）。
+```python
+# 重点
+max_seq_length_list = [128, 256, 512]
+# 动态输入时候需要 分别为最小输入、常规输入、最大输入
+for max_seq_length in max_seq_length_list:
+    profile = builder.create_optimization_profile()
+    min_shape = (1, max_seq_length)
+    opt_shape = (1, max_seq_length)
+    max_shape = (1, max_seq_length)
+    # 注意自己有几个输入，有几个输入就要写几个profile.set_shape, 名字和转onnx的时候相对应
+    profile.set_shape('input_ids', min_shape, opt_shape, max_shape)
+    profile.set_shape('attention_mask', min_shape, opt_shape, max_shape)
+    profile.set_shape('token_type_ids', min_shape, opt_shape, max_shape)
+    config.add_optimization_profile(profile)
+```
 
 - 遗留问题2：非常奇怪的是，在Pipeline 的 TRT 方案中，FP32的性能反而比 GPU 的性能还差，但是使用了 FP6之后，整体性能有差不多是 GPU 性能的2倍，该问题待解释。
 
