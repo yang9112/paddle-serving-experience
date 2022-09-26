@@ -143,7 +143,7 @@ local_service_conf:
 测试结果：其中 TS（torchserve）、TRT（TensorRT）、PSP（Paddle Serving Pipeline）
 
 <div align=center>
-    <img src="images/experiment-result.png" width="400" title="Paddle Serving">
+    <img src="images/experiment-result.png" title="Paddle Serving">
 </div>
 
 
