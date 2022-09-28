@@ -196,7 +196,7 @@ class BertOp(Op):
 ```
 
 ## 4.2 TRT 转换出现额外需要设置的动态输入
-原因：Paddle Serving 本身转 TRT 的问题，毕竟不是原生TRT的转换，PaddlePaddle 的 BertModel不是原生的BertModel，从默认的 vocab_size 可以看出，应该是属于 ERNIE的 base，转 TRT 的时候，如果使用动态向量，则需要增加一个多个动态向量的设置，并且在不同的 tensorrt 版本不同的模型中对应需要动态设置的变量还不一定一样。
+原因：Paddle Serving 本身转 TRT 的问题，毕竟不是原生TRT的转换，转 TRT 的时候，如果使用动态向量，则需要增加一个多个动态向量的设置，并且在不同的 tensorrt 版本不同的模型中对应需要动态设置的变量还不一定一样。
 比如此处`unsqueeze2_0.tmp_0`的额外设置。
 
 ```python
