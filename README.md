@@ -54,6 +54,7 @@ docker build -t paddle-serving-base .
 （1）Paddlepaddle 框架模型
 
 如果是基于 PaddlePaddle 框架训练的模型，相对来说比较简单，可以直接使用paddle.jit 中的 to_static 工具进行转换，具体如下：
+需要注意的是，转换为静态模型，顺序需要与 paddle forward 中的顺序完全一致，如果中间存在 None 的情况，也不可以跳过。
 ```python
 import paddle
 from paddle.jit import to_static
@@ -70,8 +71,9 @@ token_type_ids = InputSpec([None, None], 'int64', 'token_type_ids')
 attention_mask = InputSpec([None, None], 'int64', 'attention_mask')
 
 # 导出静态模型
+# 对于paddleNLP中的 position_ids 来说，None 也不能少
 model = to_static(paddle_model, 
-                  input_spec=[input_ids, token_type_ids, attention_mask])
+                  input_spec=[input_ids, token_type_ids, None, attention_mask])
 paddle.jit.save(model, 'pb_model')
 ```
 （2）Paddlepaddle 框架模型
